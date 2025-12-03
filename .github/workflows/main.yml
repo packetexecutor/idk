@@ -1,4 +1,4 @@
-YAML_WINDOWS = """name: Windows Web 
+name: Windows Native Web
 on:
   workflow_dispatch:
     inputs:
@@ -11,80 +11,67 @@ jobs:
     timeout-minutes: 360
     steps:
     - uses: actions/checkout@v4
-
+    
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11' 
 
-    - name: 2. Install Tools (Direct Download)
+    - name: Install Tools
       shell: powershell
       run: |
-        # Tải TightVNC MSI (Nhanh gấp 10 lần Choco)
         Invoke-WebRequest "https://www.tightvnc.com/download/2.8.84/tightvnc-2.8.84-gpl-setup-64bit.msi" -OutFile "tightvnc.msi"
         Start-Process msiexec.exe -ArgumentList "/i tightvnc.msi /quiet /norestart" -Wait
-        
-        # Tải NoVNC (Zip)
         Invoke-WebRequest "https://github.com/novnc/noVNC/archive/refs/tags/v1.5.0.zip" -OutFile "novnc.zip"
         Expand-Archive novnc.zip -DestinationPath "C:\\"
         Move-Item "C:\\noVNC-1.5.0" "C:\\noVNC"
-        
-        # Cài Websockify
         pip install websockify
 
-    - name: 3. Configure VNC & Services
+    - name: Configure VNC
       shell: powershell
       run: |
-        # Config Registry
         New-Item -Path "HKLM:\\SOFTWARE\\TightVNC\\Server" -Force | Out-Null
         New-ItemProperty -Path "HKLM:\\SOFTWARE\\TightVNC\\Server" -Name "AllowLoopback" -Value 1 -PropertyType DWORD -Force
         New-ItemProperty -Path "HKLM:\\SOFTWARE\\TightVNC\\Server" -Name "AuthenticationLevel" -Value 0 -PropertyType DWORD -Force
-        
-        # Start VNC
         Start-Process "C:\\Program Files\\TightVNC\\tvnserver.exe" -ArgumentList "-run" -WindowStyle Hidden
         Start-Sleep -Seconds 3
-        
-        # Start Websockify
         Start-Process "python" -ArgumentList "-m websockify 6080 127.0.0.1:5900 --web C:\\noVNC" -WindowStyle Hidden
 
-    - name: 4. Cloudflare Tunnel
+    - name: Cloudflare Tunnel
       shell: powershell
       run: |
         Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
         Start-Process ".\\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:6080" -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel_err.log" -WindowStyle Hidden
-        
-    - name: SHOW LINK (FIXED LOGIC)
+
+    - name: Show Link
       shell: powershell
       run: |
         $url = "Finding Link..."
-        Write-Host "Searching for Cloudflare Link..."
-        
-        # Vòng lặp tối ưu tìm link
         for ($i=0; $i -lt 40; $i++) {
-            # Dùng Select-String để bắt Regex chuẩn hơn
-            $found = Select-String -Path "tunnel_err.log", "tunnel.log" -Pattern 'https://[-a-z0-9]+\.trycloudflare\.com' -ErrorAction SilentlyContinue
-            
-            if ($found) {
-                # Lấy giá trị đầu tiên tìm thấy
-                $rawLink = $found.Matches[0].Value
-                $url = "$rawLink/vnc.html"
-                break
+            if (Test-Path tunnel_err.log) {
+                $c = Get-Content tunnel_err.log
+                if ($c -match 'https://.*\.trycloudflare\.com') {
+                    $url = $matches[0] + "/vnc.html"
+                    break
+                }
+            }
+            if (Test-Path tunnel.log) {
+                $c = Get-Content tunnel.log
+                if ($c -match 'https://.*\.trycloudflare\.com') {
+                    $url = $matches[0] + "/vnc.html"
+                    break
+                }
             }
             Start-Sleep -Seconds 2
         }
-        
         Write-Host " "
-        Write-Host "========================================================" -ForegroundColor Green
-        Write-Host "           WINDOWS WEB INTERFACE READY" -ForegroundColor Green
-        Write-Host "========================================================" -ForegroundColor Green
-        Write-Host " "
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "       WINDOWS WEB INTERFACE READY" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
         Write-Host "LINK: $url" -ForegroundColor Cyan
-        Write-Host " "
         Write-Host "PASS: ${{ inputs.password }}" -ForegroundColor Yellow
-        Write-Host " "
         Write-Host "NOTE: Auto-login enabled." -ForegroundColor White
-        Write-Host "========================================================" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
 
     - name: Keep Alive
       run: start-sleep 21600
-"""
