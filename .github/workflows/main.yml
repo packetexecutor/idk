@@ -26,8 +26,6 @@ jobs:
         New-Item -Path "HKLM:\SOFTWARE\TightVNC" -Force | Out-Null
         New-Item -Path "HKLM:\SOFTWARE\TightVNC\Server" -Force | Out-Null
         New-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AllowLoopback" -Value 1 -PropertyType DWORD -Force
-        # AuthenticationLevel = 0 để Auto Login (Tránh lỗi màn đen). 
-        # Nếu muốn bắt nhập pass thì đổi thành 1, nhưng chạy trên GitHub Actions hay bị lỗi.
         New-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AuthenticationLevel" -Value 0 -PropertyType DWORD -Force
 
     - name: Start Services
@@ -45,7 +43,7 @@ jobs:
         Start-Process ".\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:6080" -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel_err.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
-    - name: SHOW INFO
+    - name: SHOW INFO IN LOG
       shell: powershell
       run: |
         $url = "Finding Link..."
@@ -60,16 +58,17 @@ jobs:
             Start-Sleep -Seconds 3
         }
         
+        # ĐÃ SỬA LẠI THÀNH TIẾNG ANH ĐỂ KHÔNG BỊ LỖI FONT
         Write-Host " "
         Write-Host "========================================================" -ForegroundColor Green
         Write-Host "           WINDOWS WEB INTERFACE READY" -ForegroundColor Green
         Write-Host "========================================================" -ForegroundColor Green
         Write-Host " "
-        Write-Host "🔗 LINK: $url" -ForegroundColor Cyan
+        Write-Host "LINK: $url" -ForegroundColor Cyan
         Write-Host " "
-        Write-Host "🔑 PASS: ${{ inputs.password }}" -ForegroundColor Yellow
+        Write-Host "PASS: ${{ inputs.password }}" -ForegroundColor Yellow
         Write-Host " "
-        Write-Host "ℹ️  NOTE: Nếu vào thẳng được thì không cần nhập Pass." -ForegroundColor White
+        Write-Host "NOTE: Auto-login enabled. No password needed usually." -ForegroundColor White
         Write-Host "========================================================" -ForegroundColor Green
 
     - name: Keep Alive
