@@ -40,14 +40,25 @@ jobs:
       shell: powershell
       run: |
         Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
+        # Chạy tunnel và ghi log ra cả 2 file cho chắc
         Start-Process ".\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:6080" -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel_err.log" -WindowStyle Hidden
-        Start-Sleep -Seconds 15
+        Start-Sleep -Seconds 10
 
-    - name: SHOW INFO IN LOG
+    - name: SHOW INFO IN LOG (Linux Logic)
       shell: powershell
       run: |
         $url = "Finding Link..."
+        # Vòng lặp tìm link trong 60 giây
         for ($i=0; $i -lt 20; $i++) {
+            # 1. Check file Error (Cloudflare hay nhả link vào đây)
+            if (Test-Path tunnel_err.log) {
+                $content = Get-Content tunnel_err.log
+                if ($content -match 'https://.*\.trycloudflare\.com') {
+                    $url = $matches[0] + "/vnc.html"
+                    break
+                }
+            }
+            # 2. Check file Log thường (Dự phòng)
             if (Test-Path tunnel.log) {
                 $content = Get-Content tunnel.log
                 if ($content -match 'https://.*\.trycloudflare\.com') {
@@ -58,7 +69,6 @@ jobs:
             Start-Sleep -Seconds 3
         }
         
-        # ĐÃ SỬA LẠI THÀNH TIẾNG ANH ĐỂ KHÔNG BỊ LỖI FONT
         Write-Host " "
         Write-Host "========================================================" -ForegroundColor Green
         Write-Host "           WINDOWS WEB INTERFACE READY" -ForegroundColor Green
