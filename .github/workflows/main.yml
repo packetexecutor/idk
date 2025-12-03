@@ -1,0 +1,76 @@
+name: Windows Native Web (Log View)
+on:
+  workflow_dispatch:
+    inputs:
+      password:
+        description: 'Password'
+        required: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Dependencies
+      run: |
+        choco install python --version=3.11.0 -y --no-progress
+        choco install tightvnc -y --no-progress
+        pip install websockify
+        git clone https://github.com/novnc/noVNC.git C:\noVNC
+
+    - name: Configure VNC
+      shell: powershell
+      run: |
+        New-Item -Path "HKLM:\SOFTWARE\TightVNC" -Force | Out-Null
+        New-Item -Path "HKLM:\SOFTWARE\TightVNC\Server" -Force | Out-Null
+        New-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AllowLoopback" -Value 1 -PropertyType DWORD -Force
+        # AuthenticationLevel = 0 để Auto Login (Tránh lỗi màn đen). 
+        # Nếu muốn bắt nhập pass thì đổi thành 1, nhưng chạy trên GitHub Actions hay bị lỗi.
+        New-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AuthenticationLevel" -Value 0 -PropertyType DWORD -Force
+
+    - name: Start Services
+      shell: powershell
+      run: |
+        Start-Process "C:\Program Files\TightVNC\tvnserver.exe" -ArgumentList "-run" -WindowStyle Hidden
+        Start-Sleep -Seconds 5
+        Start-Process "python" -ArgumentList "-m websockify 6080 127.0.0.1:5900 --web C:\noVNC" -WindowStyle Hidden
+        Start-Sleep -Seconds 5
+
+    - name: Cloudflare Tunnel
+      shell: powershell
+      run: |
+        Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
+        Start-Process ".\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:6080" -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel_err.log" -WindowStyle Hidden
+        Start-Sleep -Seconds 15
+
+    - name: SHOW INFO
+      shell: powershell
+      run: |
+        $url = "Finding Link..."
+        for ($i=0; $i -lt 20; $i++) {
+            if (Test-Path tunnel.log) {
+                $content = Get-Content tunnel.log
+                if ($content -match 'https://.*\.trycloudflare\.com') {
+                    $url = $matches[0] + "/vnc.html"
+                    break
+                }
+            }
+            Start-Sleep -Seconds 3
+        }
+        
+        Write-Host " "
+        Write-Host "========================================================" -ForegroundColor Green
+        Write-Host "           WINDOWS WEB INTERFACE READY" -ForegroundColor Green
+        Write-Host "========================================================" -ForegroundColor Green
+        Write-Host " "
+        Write-Host "🔗 LINK: $url" -ForegroundColor Cyan
+        Write-Host " "
+        Write-Host "🔑 PASS: ${{ inputs.password }}" -ForegroundColor Yellow
+        Write-Host " "
+        Write-Host "ℹ️  NOTE: Nếu vào thẳng được thì không cần nhập Pass." -ForegroundColor White
+        Write-Host "========================================================" -ForegroundColor Green
+
+    - name: Keep Alive
+      run: start-sleep 21600
