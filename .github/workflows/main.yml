@@ -41,7 +41,7 @@ jobs:
       shell: powershell
       run: |
         Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
-        Start-Process ".\\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:6080" -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel.log" -WindowStyle Hidden
+        Start-Process ".\\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:6080" -RedirectStandardOutput "tunnel_out.log" -RedirectStandardError "tunnel.log" -WindowStyle Hidden
 
     - name: Show Link
       shell: powershell
